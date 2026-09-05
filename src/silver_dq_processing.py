@@ -8,10 +8,8 @@ from pyspark.sql.functions import col, current_date, current_timestamp
 from src.config import bronze_path, quarantine_path, silver_path, spark
 
 
-def process_silver() -> tuple[DataFrame, DataFrame]:
-    """Quarantine invalid rows and overwrite the Silver Delta output."""
-    bronze_transactions = spark.read.format("delta").load(bronze_path)
-
+def apply_dq_rules(transactions: DataFrame) -> tuple[DataFrame, DataFrame]:
+    """Return deduplicated clean rows and rows failing the validation rules."""
     invalid_condition = (
         col("transaction_id").isNull()
         | col("transaction_amount").isNull()
@@ -22,8 +20,16 @@ def process_silver() -> tuple[DataFrame, DataFrame]:
         )
     )
 
-    quarantine_transactions = bronze_transactions.filter(invalid_condition)
-    clean_transactions = bronze_transactions.filter(~invalid_condition).dropDuplicates()
+    quarantine_transactions = transactions.filter(invalid_condition)
+    clean_transactions = transactions.filter(~invalid_condition).dropDuplicates()
+
+    return clean_transactions, quarantine_transactions
+
+
+def process_silver() -> tuple[DataFrame, DataFrame]:
+    """Quarantine invalid rows and overwrite the Silver Delta output."""
+    bronze_transactions = spark.read.format("delta").load(bronze_path)
+    clean_transactions, quarantine_transactions = apply_dq_rules(bronze_transactions)
 
     quarantine_transactions.write.format("delta").mode("overwrite").save(
         quarantine_path
