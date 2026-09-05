@@ -1,4 +1,4 @@
-"""Apply data-quality rules and promote Bronze data into Silver."""
+"""Apply data-quality rules and promote Bronze data into Silver"""
 
 from __future__ import annotations
 
