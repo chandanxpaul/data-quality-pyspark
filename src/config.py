@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from delta import configure_spark_with_delta_pip
 from pyspark.sql import SparkSession
 
 
@@ -12,7 +13,7 @@ gold_path = str(DATA_DIR / "gold")
 quarantine_path = str(DATA_DIR / "quarantine")
 
 
-spark = (
+spark_builder = (
     SparkSession.builder.appName("pyspark-databricks-poc")
     .master("local[*]")
     .config(
@@ -23,5 +24,6 @@ spark = (
         "spark.sql.catalog.spark_catalog",
         "org.apache.spark.sql.delta.catalog.DeltaCatalog",
     )
-    .getOrCreate()
 )
+
+spark = configure_spark_with_delta_pip(spark_builder).getOrCreate()

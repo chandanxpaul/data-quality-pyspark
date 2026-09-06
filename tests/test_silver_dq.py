@@ -52,11 +52,11 @@ def test_silver_dq_filters_invalid_rows_and_deduplicates():
         clean_rows,
         expected_clean,
         ignore_nullable=True,
-        check_row_order=False,
+        ignore_row_order=True,
     )
     assert_df_equality(
         quarantine_rows,
         expected_quarantine,
         ignore_nullable=True,
-        check_row_order=False,
+        ignore_row_order=True,
     )

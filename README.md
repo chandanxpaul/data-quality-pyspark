@@ -2,6 +2,8 @@
 
 A local PySpark and Delta Lake proof of concept for ingesting e-commerce transactions, applying data-quality rules, and building reporting tables that can be adapted for Databricks.
 
+PySpark requires a Java runtime. Java 17 is a suitable LTS choice for this project.
+
 ## Data Flow
 
 ```mermaid
@@ -52,6 +54,17 @@ The included generator simulates the API source locally. In a Databricks deploym
 
 ## Setup
 
+On macOS with Homebrew:
+
+```bash
+brew install openjdk@17
+export JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+```
+
+Add the two `export` lines to `~/.zshrc` if you want them to persist across terminal sessions.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -63,10 +76,10 @@ pip install -r requirements.txt
 Run the stages from the repository root:
 
 ```bash
-python3 src/generate_mock_data.py
-python3 src/bronze_ingestion.py
-python3 src/silver_dq_processing.py
-python3 src/gold_aggregation.py
+python3 -m src.generate_mock_data
+python3 -m src.bronze_ingestion
+python3 -m src.silver_dq_processing
+python3 -m src.gold_aggregation
 ```
 
 The generated input contains 2,000 transactions with deliberate null IDs, negative amounts, duplicate rows, and future dates for testing.
