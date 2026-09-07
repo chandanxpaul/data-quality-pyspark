@@ -49,6 +49,11 @@ def ingest_to_bronze(input_path: str | Path = INPUT_PATH) -> DataFrame:
     return bronze_transactions
 
 
+def run(input_path: str | Path = INPUT_PATH) -> DataFrame:
+    """Notebook-friendly entry point for Bronze ingestion."""
+    return ingest_to_bronze(input_path)
+
+
 if __name__ == "__main__":
     ingested = ingest_to_bronze()
     print(f"Appended {ingested.count():,} rows to {bronze_path}")

@@ -44,6 +44,11 @@ def build_gold_tables() -> tuple[DataFrame, DataFrame]:
     return daily_revenue, quarantine_metrics
 
 
+def run() -> tuple[DataFrame, DataFrame]:
+    """Notebook-friendly entry point for Gold aggregation."""
+    return build_gold_tables()
+
+
 if __name__ == "__main__":
     revenue, quarantine = build_gold_tables()
     print(

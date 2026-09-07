@@ -16,7 +16,18 @@ from pyspark.sql.functions import (
     when,
 )
 
-from src.config import bronze_path, dq_metrics_path, quarantine_path, silver_path, spark
+from src import config
+
+bronze_path = config.bronze_path
+quarantine_path = config.quarantine_path
+silver_path = config.silver_path
+spark = config.spark
+# Keep older checked-out workspace copies usable while the repo is syncing.
+dq_metrics_path = getattr(
+    config,
+    "dq_metrics_path",
+    str(config.DATA_DIR / "dq_metrics"),
+)
 
 
 RULE_TRANSACTION_ID = "transaction_id_not_null"
@@ -113,6 +124,11 @@ def process_silver() -> tuple[DataFrame, DataFrame, DataFrame]:
     silver_transactions.write.format("delta").mode("overwrite").save(silver_path)
 
     return silver_transactions, quarantine_transactions, dq_metrics
+
+
+def run() -> tuple[DataFrame, DataFrame, DataFrame]:
+    """Notebook-friendly entry point for Silver DQ processing."""
+    return process_silver()
 
 
 if __name__ == "__main__":
