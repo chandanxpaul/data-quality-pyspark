@@ -1,6 +1,13 @@
 from chispa import assert_df_equality
 
-from src.config import bronze_path, gold_path, quarantine_path, silver_path, spark
+from src.config import (
+    bronze_path,
+    dq_metrics_path,
+    gold_path,
+    quarantine_path,
+    silver_path,
+    spark,
+)
 
 
 def test_path_variables_point_to_data_directory():
@@ -8,6 +15,7 @@ def test_path_variables_point_to_data_directory():
     assert silver_path.endswith("data/silver")
     assert gold_path.endswith("data/gold")
     assert quarantine_path.endswith("data/quarantine")
+    assert dq_metrics_path.endswith("data/dq_metrics")
 
 
 def test_spark_session_uses_local_mode():

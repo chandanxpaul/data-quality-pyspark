@@ -14,6 +14,7 @@ flowchart LR
     Silver --> Daily[Gold: daily_revenue]
     Bronze --> Rules{Data quality rules}
     Rules -->|Rule failures| Quarantine[Quarantine Delta]
+    Rules --> DQMetrics[DQ metrics Delta]
     Quarantine --> Metrics[Gold: quarantine_metrics]
 ```
 
@@ -22,7 +23,7 @@ The included generator simulates the API source locally. In a Databricks deploym
 ## Layers
 
 - **Bronze**: Reads the mock CSV with an explicit schema and adds `_bronze_insert_ts`.
-- **Silver**: Quarantines invalid records, removes exact duplicates, and adds `_silver_processed_ts`.
+- **Silver**: Quarantines invalid records with failure reasons, removes exact duplicates, logs per-rule DQ counts, and adds `_silver_processed_ts`.
 - **Gold**: Produces daily revenue and quarantine metrics for reporting.
 
 ## Data Quality Rules
@@ -31,6 +32,8 @@ The included generator simulates the API source locally. In a Databricks deploym
 - `transaction_amount` must be greater than zero.
 - `transaction_date` must not be in the future.
 - Exact duplicate rows are removed from the clean Silver output.
+
+DQ metrics are written to `data/dq_metrics` with one row per rule and a `_dq_logged_ts` timestamp. A record that fails multiple rules is counted once for each applicable rule.
 
 ## Project Structure
 
@@ -41,7 +44,8 @@ The included generator simulates the API source locally. In a Databricks deploym
 │   ├── bronze/         # Bronze Delta output; ignored by Git
 │   ├── silver/         # Silver Delta output; ignored by Git
 │   ├── gold/           # Gold Delta outputs; ignored by Git
-│   └── quarantine/     # Invalid records; ignored by Git
+│   ├── quarantine/     # Invalid records; ignored by Git
+│   └── dq_metrics/     # Per-rule DQ counts; ignored by Git
 ├── src/
 │   ├── config.py
 │   ├── generate_mock_data.py
@@ -73,13 +77,26 @@ pip install -r requirements.txt
 
 ## Run the Pipeline
 
-Run the stages from the repository root:
+The recommended wrapper commands are:
 
 ```bash
-python3 -m src.generate_mock_data
-python3 -m src.bronze_ingestion
-python3 -m src.silver_dq_processing
-python3 -m src.gold_aggregation
+make setup
+make pipeline
+```
+
+Because Bronze uses append mode, `make pipeline` stops if Bronze data already exists. To intentionally clear generated local data and rerun everything:
+
+```bash
+make pipeline-reset
+```
+
+Individual stages are also available:
+
+```bash
+make generate
+make bronze
+make silver
+make gold
 ```
 
 The generated input contains 2,000 transactions with deliberate null IDs, negative amounts, duplicate rows, and future dates for testing.
@@ -87,5 +104,9 @@ The generated input contains 2,000 transactions with deliberate null IDs, negati
 ## Run Tests
 
 ```bash
-pytest
+make test
 ```
+
+The wrappers automatically use `.venv` and detect the Homebrew OpenJDK 17 installation on macOS. The underlying Python modules can still be run directly with `python3 -m src.<module>` when needed.
+
+Each wrapper prints a highlighted start banner, completion status, and record-count summary. Set `NO_COLOR=1` to disable ANSI colors. Spark routine logs are reduced to `ERROR`; failures are still shown.

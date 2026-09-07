@@ -24,14 +24,21 @@ def build_gold_tables() -> tuple[DataFrame, DataFrame]:
         count("transaction_id").alias("transaction_count"),
     )
 
-    # The quarantine layer currently has no failure-reason column, so report by date.
-    quarantine_metrics = quarantine_transactions.groupBy("transaction_date").agg(
+    quarantine_metrics = quarantine_transactions.groupBy("dq_failure_reason").agg(
         count("*").alias("quarantined_record_count")
     )
 
-    daily_revenue.write.format("delta").mode("overwrite").save(DAILY_REVENUE_PATH)
-    quarantine_metrics.write.format("delta").mode("overwrite").save(
-        QUARANTINE_METRICS_PATH
+    (
+        daily_revenue.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .save(DAILY_REVENUE_PATH)
+    )
+    (
+        quarantine_metrics.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .save(QUARANTINE_METRICS_PATH)
     )
 
     return daily_revenue, quarantine_metrics

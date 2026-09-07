@@ -11,6 +11,7 @@ bronze_path = str(DATA_DIR / "bronze")
 silver_path = str(DATA_DIR / "silver")
 gold_path = str(DATA_DIR / "gold")
 quarantine_path = str(DATA_DIR / "quarantine")
+dq_metrics_path = str(DATA_DIR / "dq_metrics")
 
 
 spark_builder = (
@@ -27,3 +28,4 @@ spark_builder = (
 )
 
 spark = configure_spark_with_delta_pip(spark_builder).getOrCreate()
+spark.sparkContext.setLogLevel("ERROR")
