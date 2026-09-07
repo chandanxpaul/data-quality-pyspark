@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Set this before importing src.config in Databricks, for example:
 # /Volumes/<catalog>/<schema>/<volume>
-DATABRICKS_DATA_DIR_ENV = "/Volumes/workspace/default/test-poc-volume/"
+DATABRICKS_DATA_DIR_ENV = "DATABRICKS_DATA_DIR"
 configured_data_dir = os.getenv(DATABRICKS_DATA_DIR_ENV)
 IS_DATABRICKS = bool(os.getenv("DATABRICKS_RUNTIME_VERSION")) or bool(
     configured_data_dir
