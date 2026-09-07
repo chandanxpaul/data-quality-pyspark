@@ -113,18 +113,84 @@ Each wrapper prints a highlighted start banner, completion status, and record-co
 
 ## Databricks Runner
 
-For Databricks, upload `mock_transactions.csv` to the `input/` directory of a Unity Catalog Volume. Set the Volume root before importing the project modules:
+The Databricks flow is intended for a Databricks notebook attached to Serverless or Dedicated compute. The configuration reuses Databricks' existing `spark` session and does not access `SparkContext`, so Serverless compute is supported.
+
+### 1. Sync the Repository
+
+Pull or sync the latest repository contents into the Databricks workspace. Restart the notebook Python process after changing the repository or environment configuration:
+
+```python
+%restart_python
+```
+
+### 2. Upload the Input File
+
+Upload `mock_transactions.csv` to the `input/` directory of a Unity Catalog Volume. For example:
+
+```text
+/Volumes/workspace/default/test-poc-volume/input/mock_transactions.csv
+```
+
+The Volume root is `/Volumes/workspace/default/test-poc-volume`, not the `input/` directory itself.
+
+### 3. Configure the Volume Root
+
+Set `DATABRICKS_DATA_DIR` before importing any `src` modules:
 
 ```python
 import os
 
-os.environ["DATABRICKS_DATA_DIR"] = "/Volumes/<catalog>/<schema>/<volume>"
+os.environ["DATABRICKS_DATA_DIR"] = "/Volumes/workspace/default/test-poc-volume"
+```
+
+Do not replace `DATABRICKS_DATA_DIR_ENV` in `src/config.py` with the Volume path. It must remain the environment variable name:
+
+```python
+DATABRICKS_DATA_DIR_ENV = "DATABRICKS_DATA_DIR"
+```
+
+### 4. Run the Pipeline
+
+Import the modules only after setting the environment variable:
+
+```python
+%load_ext autoreload
+%autoreload 2
 
 from src import bronze_ingestion, gold_aggregation, silver_dq_processing
 
+print("Starting Bronze Layer Ingestion...")
 bronze_ingestion.run()
+
+print("Starting Silver Layer DQ Processing...")
 silver_dq_processing.run()
+
+print("Starting Gold Layer Aggregation...")
 gold_aggregation.run()
+
+print("Pipeline Execution Complete.")
 ```
 
-The Databricks runner intentionally skips `generate_mock_data`; it reads the uploaded file from `<volume>/input/`. The local generator remains available for local development.
+The Databricks runner intentionally skips `generate_mock_data`; Bronze reads the uploaded file from `<volume>/input/`. The resulting Delta paths are:
+
+```text
+<volume>/bronze
+<volume>/silver
+<volume>/quarantine
+<volume>/dq_metrics
+<volume>/gold
+```
+
+The local `make pipeline` workflow and `generate_mock_data` script remain available for local development. Do not run the local generator in the Databricks notebook.
+
+### 5. Verify Configuration
+
+If imports fail, restart Python and run this check before importing the pipeline modules:
+
+```python
+import os
+
+print(os.environ.get("DATABRICKS_DATA_DIR"))
+```
+
+It should print the Volume root, for example `/Volumes/workspace/default/test-poc-volume`.
