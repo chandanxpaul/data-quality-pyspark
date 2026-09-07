@@ -110,3 +110,21 @@ make test
 The wrappers automatically use `.venv` and detect the Homebrew OpenJDK 17 installation on macOS. The underlying Python modules can still be run directly with `python3 -m src.<module>` when needed.
 
 Each wrapper prints a highlighted start banner, completion status, and record-count summary. Set `NO_COLOR=1` to disable ANSI colors. Spark routine logs are reduced to `ERROR`; failures are still shown.
+
+## Databricks Runner
+
+For Databricks, upload `mock_transactions.csv` to the `input/` directory of a Unity Catalog Volume. Set the Volume root before importing the project modules:
+
+```python
+import os
+
+os.environ["DATABRICKS_DATA_DIR"] = "/Volumes/<catalog>/<schema>/<volume>"
+
+from src import bronze_ingestion, gold_aggregation, silver_dq_processing
+
+bronze_ingestion.run()
+silver_dq_processing.run()
+gold_aggregation.run()
+```
+
+The Databricks runner intentionally skips `generate_mock_data`; it reads the uploaded file from `<volume>/input/`. The local generator remains available for local development.
