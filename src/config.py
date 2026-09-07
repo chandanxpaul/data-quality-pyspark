@@ -14,18 +14,23 @@ quarantine_path = str(DATA_DIR / "quarantine")
 dq_metrics_path = str(DATA_DIR / "dq_metrics")
 
 
-spark_builder = (
-    SparkSession.builder.appName("pyspark-databricks-poc")
-    .master("local[*]")
-    .config(
-        "spark.sql.extensions",
-        "io.delta.sql.DeltaSparkSessionExtension",
+active_spark = SparkSession.getActiveSession()
+if active_spark is not None:
+    # Databricks already provides a configured Spark session and Delta runtime.
+    spark = active_spark
+else:
+    spark_builder = (
+        SparkSession.builder.appName("pyspark-databricks-poc")
+        .master("local[*]")
+        .config(
+            "spark.sql.extensions",
+            "io.delta.sql.DeltaSparkSessionExtension",
+        )
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
     )
-    .config(
-        "spark.sql.catalog.spark_catalog",
-        "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-    )
-)
+    spark = configure_spark_with_delta_pip(spark_builder).getOrCreate()
 
-spark = configure_spark_with_delta_pip(spark_builder).getOrCreate()
 spark.sparkContext.setLogLevel("ERROR")
