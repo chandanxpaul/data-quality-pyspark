@@ -2,9 +2,11 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from chispa import assert_df_equality
+from pyspark.sql.functions import col
 from pyspark.sql.types import (
     DateType,
     DecimalType,
+    IntegerType,
     StringType,
     StructField,
     StructType,
@@ -16,6 +18,8 @@ from src.silver_dq_processing import (
     RULE_TRANSACTION_AMOUNT,
     RULE_TRANSACTION_DATE,
     RULE_TRANSACTION_ID,
+    RULE_SEMANTIC_RATING,
+    SENTIMENT_COLUMN,
     apply_dq_rules,
     build_dq_metrics,
 )
@@ -127,3 +131,75 @@ def test_silver_dq_logs_counts_for_each_rule():
     )
 
     assert_df_equality(actual, expected, ignore_nullable=True, ignore_row_order=True)
+
+
+def test_silver_dq_quarantines_semantic_rating_mismatch():
+    semantic_schema = StructType(
+        TRANSACTION_SCHEMA.fields
+        + [
+            StructField("customer_review", StringType(), nullable=True),
+            StructField("star_rating", IntegerType(), nullable=True),
+            StructField(SENTIMENT_COLUMN, StringType(), nullable=True),
+        ]
+    )
+    rows = [
+        (
+            "TXN-MATCH",
+            "CUST-004",
+            "Beauty",
+            Decimal("50.00"),
+            date(2025, 1, 18),
+            "Card",
+            "Excellent product and great quality.",
+            5,
+            "positive",
+        ),
+        (
+            "TXN-MISMATCH",
+            "CUST-005",
+            "Beauty",
+            Decimal("50.00"),
+            date(2025, 1, 19),
+            "Card",
+            "Terrible product, broke on day one, completely unusable.",
+            5,
+            "negative",
+        ),
+        (
+            None,
+            "CUST-006",
+            "Beauty",
+            Decimal("-25.00"),
+            date(2025, 1, 20),
+            "Card",
+            "Terrible product, broke on day one, completely unusable.",
+            5,
+            "negative",
+        ),
+    ]
+    transactions = spark.createDataFrame(rows, semantic_schema)
+
+    clean_rows, quarantine_rows = apply_dq_rules(transactions)
+
+    assert clean_rows.select("transaction_id").first()["transaction_id"] == "TXN-MATCH"
+    mismatch = quarantine_rows.filter(col("transaction_id") == "TXN-MISMATCH").first()
+    assert mismatch["dq_failure_reason"] == RULE_SEMANTIC_RATING
+    assert mismatch["customer_review"] == (
+        "Terrible product, broke on day one, completely unusable."
+    )
+    assert mismatch["star_rating"] == 5
+    assert mismatch[SENTIMENT_COLUMN] == "negative"
+
+    multi_failure = quarantine_rows.filter(col("transaction_id").isNull()).first()
+    assert set(multi_failure["dq_failure_reason"].split("; ")) == {
+        "transaction_id_not_null",
+        "transaction_amount_positive",
+        RULE_SEMANTIC_RATING,
+    }
+
+    semantic_metric = (
+        build_dq_metrics(transactions)
+        .filter(col("rule_name") == RULE_SEMANTIC_RATING)
+        .first()
+    )
+    assert semantic_metric["failed_record_count"] == 2

@@ -9,6 +9,7 @@ from pyspark.sql.functions import current_timestamp
 from pyspark.sql.types import (
     DateType,
     DecimalType,
+    IntegerType,
     StringType,
     StructField,
     StructType,
@@ -27,6 +28,8 @@ TRANSACTION_SCHEMA = StructType(
         StructField("transaction_amount", DecimalType(10, 2), nullable=True),
         StructField("transaction_date", DateType(), nullable=True),
         StructField("payment_method", StringType(), nullable=True),
+        StructField("customer_review", StringType(), nullable=True),
+        StructField("star_rating", IntegerType(), nullable=True),
     ]
 )
 
@@ -45,7 +48,12 @@ def ingest_to_bronze(input_path: str | Path = INPUT_PATH) -> DataFrame:
         "_bronze_insert_ts", current_timestamp()
     )
 
-    bronze_transactions.write.format("delta").mode("append").save(bronze_path)
+    (
+        bronze_transactions.write.format("delta")
+        .mode("append")
+        .option("mergeSchema", "true")
+        .save(bronze_path)
+    )
     return bronze_transactions
 
 
