@@ -20,6 +20,8 @@ flowchart LR
 
 The included generator simulates the API source locally. In a Databricks deployment, the input step can be replaced with an API connector or ingestion job.
 
+The mock input includes `customer_review` text and a `star_rating` from 1 to 5. It also contains 100 deliberate semantic mismatches, such as a 5-star rating paired with a strongly negative review, for the planned Silver LLM evaluation.
+
 ## Layers
 
 - **Bronze**: Reads the mock CSV with an explicit schema and adds `_bronze_insert_ts`.
@@ -32,8 +34,9 @@ The included generator simulates the API source locally. In a Databricks deploym
 - `transaction_amount` must be greater than zero.
 - `transaction_date` must not be in the future.
 - Exact duplicate rows are removed from the clean Silver output.
+- A negative review sentiment paired with a 5-star rating is flagged as `SEMANTIC_RATING_MISMATCH`.
 
-DQ metrics are written to `data/dq_metrics` with one row per rule and a `_dq_logged_ts` timestamp. A record that fails multiple rules is counted once for each applicable rule.
+DQ metrics are written to `data/dq_metrics` with one row per rule and a `_dq_logged_ts` timestamp. Metrics include the semantic mismatch rule when sentiment evaluation is available. A record that fails multiple rules is counted once for each applicable rule, and quarantine retains the review, rating, inferred sentiment, and combined failure reasons.
 
 ## Project Structure
 
@@ -99,7 +102,7 @@ make silver
 make gold
 ```
 
-The generated input contains 2,000 transactions with deliberate null IDs, negative amounts, duplicate rows, and future dates for testing.
+The generated input contains 2,000 transactions with deliberate null IDs, negative amounts, duplicate rows, future dates, review text, ratings, and semantic rating/review mismatches for testing.
 
 ## Run Tests
 

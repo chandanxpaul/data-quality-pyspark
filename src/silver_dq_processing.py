@@ -13,6 +13,8 @@ from pyspark.sql.functions import (
     greatest,
     lit,
     sum,
+    expr,
+    trim,
     when,
 )
 
@@ -34,11 +36,33 @@ RULE_TRANSACTION_ID = "transaction_id_not_null"
 RULE_TRANSACTION_AMOUNT = "transaction_amount_positive"
 RULE_TRANSACTION_DATE = "transaction_date_not_future"
 RULE_DUPLICATES = "duplicate_rows_removed"
+RULE_SEMANTIC_RATING = "SEMANTIC_RATING_MISMATCH"
+SENTIMENT_COLUMN = "customer_review_sentiment"
+
+
+def evaluate_review_sentiment(transactions: DataFrame) -> DataFrame:
+    """Add LLM sentiment in Databricks and a null fallback for local Spark."""
+    if "customer_review" not in transactions.columns:
+        return transactions
+
+    review_is_present = col("customer_review").isNotNull() & (
+        trim(col("customer_review")) != ""
+    )
+    if getattr(config, "IS_DATABRICKS", False):
+        sentiment = expr("ai_analyze_sentiment(customer_review)")
+    else:
+        # The native Databricks AI function is unavailable in local Spark.
+        sentiment = lit(None).cast("string")
+
+    return transactions.withColumn(
+        SENTIMENT_COLUMN,
+        when(review_is_present, sentiment).otherwise(lit(None).cast("string")),
+    )
 
 
 def _rule_conditions(transactions: DataFrame) -> dict[str, object]:
     """Build the named DQ conditions used for filtering and metrics."""
-    return {
+    conditions = {
         RULE_TRANSACTION_ID: col("transaction_id").isNull(),
         RULE_TRANSACTION_AMOUNT: (
             col("transaction_amount").isNull()
@@ -49,6 +73,14 @@ def _rule_conditions(transactions: DataFrame) -> dict[str, object]:
             & (col("transaction_date") > current_date())
         ),
     }
+    if {SENTIMENT_COLUMN, "star_rating"}.issubset(transactions.columns):
+        conditions[RULE_SEMANTIC_RATING] = (
+            col(SENTIMENT_COLUMN).isNotNull()
+            & (col(SENTIMENT_COLUMN) == "negative")
+            & col("star_rating").isNotNull()
+            & (col("star_rating") == 5)
+        )
+    return conditions
 
 
 def apply_dq_rules(transactions: DataFrame) -> tuple[DataFrame, DataFrame]:
@@ -104,7 +136,9 @@ def build_dq_metrics(transactions: DataFrame) -> DataFrame:
 
 def process_silver() -> tuple[DataFrame, DataFrame, DataFrame]:
     """Quarantine invalid rows and overwrite the Silver Delta output."""
-    bronze_transactions = spark.read.format("delta").load(bronze_path)
+    bronze_transactions = evaluate_review_sentiment(
+        spark.read.format("delta").load(bronze_path)
+    )
     clean_transactions, quarantine_transactions = apply_dq_rules(bronze_transactions)
     dq_metrics = build_dq_metrics(bronze_transactions).withColumn(
         "_dq_logged_ts", current_timestamp()
@@ -121,7 +155,12 @@ def process_silver() -> tuple[DataFrame, DataFrame, DataFrame]:
     silver_transactions = clean_transactions.withColumn(
         "_silver_processed_ts", current_timestamp()
     )
-    silver_transactions.write.format("delta").mode("overwrite").save(silver_path)
+    (
+        silver_transactions.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .save(silver_path)
+    )
 
     return silver_transactions, quarantine_transactions, dq_metrics
 
